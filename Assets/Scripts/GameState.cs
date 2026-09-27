@@ -1,8 +1,8 @@
 using UnityEngine;
 
-public class GameState : MonoBehaviour
+public class GameManager : MonoBehaviour
 {
-    public static GameState Instance { get; private set; }
+    public static GameManager Instance { get; private set; }
 
     public Transform Player;
     public SpringCameraRig CameraRig;

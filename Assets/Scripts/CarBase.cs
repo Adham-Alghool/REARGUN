@@ -22,12 +22,9 @@ public class CarBase : MonoBehaviour
     private float originalTorque;
 
     [Header("Steering")]
-    [Tooltip("The maximum steering angle at low speeds.")]
-    [SerializeField] float maxSteerAngleLo = 60f;
-    [Tooltip("The maximum steering angle at top speeds.")]
-    [SerializeField] float maxSteerAngleHi = 10f;
-    [Tooltip("Measured in degress / sec")]
-    [SerializeField] float steerSpeed = 120f;
+    [Tooltip("Strengthens calculated steering curve")]
+    [SerializeField] float steeringStrength = 2f;
+    [SerializeField] float maxTraction = 3f;
 
     private CarTransmission transmission;
 
@@ -84,15 +81,6 @@ public class CarBase : MonoBehaviour
         return Vector3.Dot(rb.linearVelocity, transform.forward);
     }
 
-    
-    float GetAppropriateTorque()
-    {
-        Vector3 toTarget = (GetSteerTarget() - transform.position).normalized;
-        float alignment = Vector3.Dot(transform.forward, toTarget); // -1..1, not distance-scaled
-        float factor = Mathf.Clamp01(alignment);                    // 0 when perpendicular/behind, 1 when aligned
-        return Mathf.Lerp(torque * 0.4f, torque, factor);            // keep some minimum drive even mid-turn
-    }
-
     void FloorIt()
     {
         if (GetSpeed() > maxSpeed)
@@ -103,42 +91,20 @@ public class CarBase : MonoBehaviour
         else
         {
             torque = originalTorque;
-            transmission.Accelerate(GetAppropriateTorque());
+            transmission.Accelerate(torque);
         }
     }
 
-    void Steer()
+    Waypoint getWaypoint()
     {
-        float steerLimit = Mathf.Lerp(maxSteerAngleLo, maxSteerAngleHi, GetSpeed() / maxSpeed);
-
-        float angleToTarget = Vector3.SignedAngle(transform.forward, GetSteerTarget() - transform.position, transform.up);
-
-        float targetSteer = Mathf.Clamp(angleToTarget, -steerLimit, steerLimit);
-
-        // ease the current wheel angle toward the target instead of snapping
-        float newSteer = Mathf.MoveTowards(wheels[0].steerAngle, targetSteer, steerSpeed * Time.fixedDeltaTime);
-
-        wheels[0].steerAngle = newSteer;
-        wheels[1].steerAngle = newSteer;
-    }
-
-    Vector3 GetSteerTarget()
-    {
-        Vector3 current = waypoints[currentWaypoint].location.position;
-        if (currentWaypoint < waypoints.Count - 1)
-        {
-            Vector3 next = waypoints[currentWaypoint + 1].location.position;
-            float dist = Vector3.Distance(transform.position, current);
-            float blend = Mathf.Clamp01(1f - (dist / blendingThreshhold)); // ramps up as you approach
-            return Vector3.Lerp(current, next, blend);
-        }
-        return current;
+        return waypoints[currentWaypoint];
     }
 
     void HandleNavigation()
     {
-        print(waypoints[currentWaypoint].Distance(transform.position));
-        if (waypoints[currentWaypoint].Distance(transform.position) <= wpThreshhold)
+        float distance = getWaypoint().Distance(transform.position);
+
+        if (distance <= wpThreshhold)
         {
             if (waypoints.Count-1 > currentWaypoint)
             {
@@ -146,5 +112,44 @@ public class CarBase : MonoBehaviour
             }
         }
 
+    }
+
+    void Steer()
+    {
+        wheels[0].steerAngle = CalculateRequiredSteeringAngle();
+        wheels[1].steerAngle = CalculateRequiredSteeringAngle();
+
+        WheelFrictionCurve newFriction = wheels[0].sidewaysFriction;
+
+        newFriction.stiffness = CalculateRequiredTraction();
+
+        foreach(var wheel in wheels)
+        {
+            wheel.sidewaysFriction = newFriction;
+        }
+    }
+
+    float CalculateRequiredSteeringAngle()
+    {
+        float xDisplacement = transform.InverseTransformPoint(getWaypoint().location.position).x;
+        float yDisplacement = transform.InverseTransformPoint(getWaypoint().location.position).z;
+
+        float wheelbase = wheels[0].transform.localPosition.z - wheels[2].transform.localPosition.z;
+
+        float curvature = (2 * xDisplacement) / (Mathf.Pow(xDisplacement, 2) + Mathf.Pow(yDisplacement, 2)); // Found this formula online.
+        float angle = Mathf.Rad2Deg * Mathf.Atan(wheelbase * curvature);
+        print($"ANGLE: {angle}");
+        return angle;
+    }
+
+    float CalculateRequiredTraction()
+    {
+        Vector3 directionToWaypoint = getWaypoint().location.position - transform.position;
+
+        float headingError = Vector3.Angle(transform.forward, directionToWaypoint);
+
+        float heading = 1f - headingError / 180f;
+
+        return heading * maxTraction;
     }
 }
