@@ -58,15 +58,23 @@ public class CarTransmission : MonoBehaviour
             GearDown();
         }
     }
-    public void Accelerate() // A function that allows other scripts to "Floor the gas".
+    public void Accelerate(float torque) // A function that allows other scripts to "Floor the gas".
     {
-        float wheelTorque = car.torque * gearRatios[currentGear] * finalDriveRatio * drivetrainEfficiency;
+        float wheelTorque = torque * gearRatios[currentGear] * finalDriveRatio * drivetrainEfficiency;
 
         int drivenWheels = car.wheels.Count - 2;
 
         for (int i = 2; i < car.wheels.Count; i++)
         {
             car.wheels[i].motorTorque = wheelTorque / drivenWheels;
+        }
+    }
+
+    public void ReleaseGas()
+    {
+        for (int i = 2; i < car.wheels.Count; i++)
+        {
+            car.wheels[i].motorTorque = 0;
         }
     }
 }
