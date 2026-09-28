@@ -116,9 +116,7 @@ public class SpringCameraRig : MonoBehaviour
             // Edge case: if the camera's center is exactly ON or past the surface,
             // awayFromSurface has ~zero length and no usable direction.
             // Fall back to pushing opposite the camera's current velocity instead.
-            Vector3 pushDirection = awayFromSurface.sqrMagnitude > 0.0001f
-                ? awayFromSurface.normalized
-                : -velocity.normalized;
+            Vector3 pushDirection = (awayFromSurface.sqrMagnitude > 0.0001f) ? awayFromSurface.normalized : -velocity.normalized;
 
             // Push the camera out to the surface, plus a small buffer (skinWidth)
             // so it doesn't sit exactly on it and re-penetrate again next frame.
